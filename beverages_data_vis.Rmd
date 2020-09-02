@@ -1,0 +1,102 @@
+---
+title: "Beverage Data Visualization"
+author: "Kim-Cuong Nguyen"
+date: "8/12/2020"
+output: md_document
+---
+
+Load libraries and data set. The `panel_data` data set was created by merging household panel data with the tissue UPC characteristics.  
+```{r}
+library(dplyr)
+library(tidyverse)
+
+load("panel_data.RData")
+```
+
+# Clean data
+Filter out unused brand information
+
+```{r}
+unused_brands <- c("ALL AMERICAN","ALL BRAND","ALL COKE PRODUCTS","ALL PEPSI PRODUCTS")
+panel_data <- panel_data %>% filter(!brand %in% unused_brands)
+```
+
+Split dataset for `diet` and `regular` brands
+```{r}
+# Brands in the table
+sort(unique(panel_data$brand))
+
+# Create a column of higher brand level
+sevenup <- c("7 UP","7 UP PLUS","7 UP POMEGRANATE","7 UP RETRO","CHERRY 7 UP")
+adirondack <- c("ADIRONDACK","ADIRONDACK CLEAR N NATURAL","ADIRONDACK NATURALS")
+bigred <- c("BIG RED","BIG PINEAPPLE","BIG PEACH")
+canfield <- c("CANFIELD","CANFIELD 50 50")
+cape <- c("CAPE COD","CAPE COD DRY")
+coke <- c("COKE","BLACK CHERRY VANILLA COKE","COCA COLA","CAFFEINE FREE COKE CLASSIC","CHERRY COKE","COKE BLAK","COKE C2","COKE CLASSIC","COKE WITH LIME","MEXICAN COCA COLA","VANILLA COKE")
+diet7up <- c("DIET 7 UP","DIET CHERRY 7 UP")
+dietcoke <- c("DIET COKE","CAFFEINE FREE DIET COKE","COKE VANILLA ZERO","COKE CHERRY ZERO","COKE ZERO","DIET BLACK CHERRY VANILLA COK","DIET CHERRY COKE","DIET COKE WITH LIME","DIET COKE PLUS","DIET COKE WITH SPLENDA","DIET COKE WITH LEMON","DIET VANILLA COKE","VANILLA COKE ZERO")
+dietdrpepper <- c("DIET DR PEPPER","CAFFEINE FREE DIET DR PEPPER","DIET CHERRY VANILLA DR PEPPER","DIET CHERRY CHOCOLATE DR PEPP","PEPPER FREE")
+dietmdew <- c("DIET MOUNTAIN DEW","DIET MOUNTAIN DEW CAFFEINE FR","DIET MOUNTAIN DEW ULTRA VIOLE","DIET MOUNTAIN DEW CODE RED","DIET MTN DEW SUPERNOVA","DIET MTN DEW VOLTAGE","MOUNTAIN DEW MDX SUGAR FREE")
+dietpepsi <- c("DIET PEPSI","CAFFEINE FREE DIET PEPSI","DIET PEPSI JAZZ","DIET PEPSI TWIST","DIET PEPSI NFL KICKOFF","DIET PEPSI WITH LIME","DIET PEPSI VANILLA","DIET WILD CHERRY PEPSI","PEPSI MAX","PEPSI MAX CEASE FIRE","PEPSI ONE")
+dietrite <- c("DIET RITE","DIET RITE PURE ZERO")
+dietsierra <- c("DIET SIERRA MIST","DIET SIERRA MIST CRANBERRY SP","DIET SIERRA MIST FREE","DIET SIERRA MIST RUBY SPLASH","SIERRA MIST FREE","SIERRA MIST FREE UNDERCOVR OR")
+dietsprite <- c("DIET SPRITE","SPRITE ZERO")
+drpepper <- c("DR PEPPER","CHERRY VANILLA DR PEPPER","DR PEPPER HERITAGE","DR PEPPER TEN","DR PEPPER RED FUSION")
+faygo <- c("FAYGO","FAYGO MOON MIST","FAYGO OHANA")
+flathead <- c("FLATHEAD LAKE GOURMET SODA","FLATHEAD LAKE MONSTER")
+goose <- c("GOOSE ISLAND ORANGE CREAM","GOOSE ISLAND ROOT BEER")
+goya <- c("GOYA","GOYA LIGHT","GOYA MALTA")
+grafs <- c("GRAFS","GRAFS 50 50","GRANDPA GRAFS")
+hansens <- c("HANSENS","HANSENS SIGNATURE")
+jolt <- c("JOLT","JOLT BLUE","JOLT RED","JOLT ULTRA")
+mello <- c("MELLO YELLO","MELLO YELLO MELON","MELLO YELLO THE ORIGINAL SMOO")
+mdew <- c("MOUNTAIN DEW","MOUNTAIN DEW CAFFEINE FREE","MOUNTAIN DEW DISTORTION","MOUNTAIN DEW CODE RED","MOUNTAIN DEW GAME FUEL","MOUNTAIN DEW MDX","MOUNTAIN DEW PITCH BLACK","MOUNTAIN DEW PITCH BLACK 2","MOUNTAIN DEW REVOLUTION","MOUNTAIN DEW THROWBACK","MOUNTAIN DEW SUPERNOVA","MOUNTAIN DEW TYPHOON","MOUNTAIN DEW WHITE OUT","MOUNTAIN DEW VOLTAGE","MT DEW LIVE WIRE")
+pepsi <- c("PEPSI","CAFFEINE FREE PEPSI","PEPSI BLUE","PEPSI HOLIDAY SPICE","PEPSI EDGE","PEPSI NFL KICKOFF","PEPSI SUMMER MIX","PEPSI THROWBACK","PEPSI VANILLA","PEPSI TWIST","PEPSI WITH LIME","PEPSI XL","WILD CHERRY PEPSI")
+rc <- c("R C","CHERRY R C")
+shasta <- c("SHASTA","SHASTA SHORTZ")
+sierra <- c("SIERRA MIST","SIERRA MIST CRANBERRY SPLASH","SIERRA MIST NATURAL","SIERRA MIST SQUEEZE","SIERRA MIST RUBY SPLASH","SIERRA MIST UNDERCOVER ORANGE")
+sprite <- c("SPRITE","SPRITE REMIX","SPRITE TROPICAL REMIX","SPRITE REMIX ARUBA JAM")
+stewarts <- c("STEWARTS","STEWARTS FOUNTAIN CLASSICS")
+sunkist <- c("SUNKIST","SUNKIST CITRUS FUSION","SUNKIST SOLAR FUSION")
+tava <- c("TAVA BRAZILIAN SAMBA","TAVA MEDITERRANEAN FIESTA","TAVA TAHITIAN TAMURE")
+vault <- c("VAULT","VAULT RED BLITZ")
+
+panel_data <- panel_data %>% mutate(brand=ifelse(brand %in% sevenup,"7 UP",ifelse(brand %in% adirondack,"ADIRONDACK",ifelse(brand %in% bigred,"BIG RED",ifelse(brand %in% canfield,"CANFIELD",ifelse(brand %in% cape,"CAPE COD",ifelse(brand %in% coke,"COKE",ifelse(brand %in% diet7up,"DIET 7 UP",ifelse(brand %in% dietcoke,"DIET COKE",ifelse(brand %in% dietdrpepper,"DIET DR PEPPER",ifelse(brand %in% dietmdew,"DIET MOUNTAIN DEW",ifelse(brand %in% dietpepsi,"DIET PEPSI",ifelse(brand %in% dietrite,"DIET RITE",ifelse(brand %in% dietsierra,"DIET SIERRA MIST",ifelse(brand %in% dietsprite,"DIET SPRITE",ifelse(brand %in% drpepper,"DR PEPPER",ifelse(brand %in% faygo,"FAYGO",ifelse(brand %in% flathead,"FLATHEAD LAKE",ifelse(brand %in% goose,"GOOSE ISLAND",ifelse(brand %in% goya,"GOYA",ifelse(brand %in% grafs,"GRAFS",ifelse(brand %in% hansens,"HANSENS",ifelse(brand %in% jolt,"JOLT",ifelse(brand %in% mello,"MELLO YELLO",ifelse(brand %in% mdew,"MOUNTAIN DEW",ifelse(brand %in% pepsi,"PEPSI",ifelse(brand %in% rc,"RC",ifelse(brand %in% shasta,"SHASTA",ifelse(brand %in% sierra,"SIERRA MIST",ifelse(brand %in% sprite,"SPRITE",ifelse(brand %in% stewarts,"STEWARTS",ifelse(brand %in% sunkist,"SUNKIST",ifelse(brand %in% tava,"TAVA",ifelse(brand %in% vault,"VAULT",brand))))))))))))))))))))))))))))))))))
+
+table(is.na(panel_data$brand)) # All values are converted.
+
+sort(unique(panel_data$brand)) # Re-check all brands
+
+# Create separate dataset for diet & regular brands
+dietbrands <- c("AIRFORCE NUTRISODA","DIET 7 UP","DIET BARQS","DIET CITRUS BLAST","DIET COKE","DIET DR PEPPER","DIET GRANDPA GRAFS","DIET HANSENS","DIET MELLO YELLO","DIET MINUTE MAID","DIET MOUNTAIN DEW","DIET MUG","DIET PEPSI","DIET R C","DIET RITE","DIET SCHWEPPES","DIET SIERRA MIST","DIET SLICE","DIET SPRITE","DIET SQUIRT","DIET STEAZ","DIET SUN DROP","DIET SUNKIST","DIET TROPICANA TWISTER","DIET VERNORS","FANTA ZERO ORANGE","JONES ZILCH","MELLO YELLO ZERO","MR PIBB ZERO","VAULT ZERO")
+
+panel_data_diet <- panel_data %>% filter(brand %in% dietbrands)
+panel_data_regular <- setdiff(panel_data,panel_data_diet)
+```
+
+# DIET DATA
+
+Find top 10 brands in terms of sales and plot sales.
+
+```{r fig.height=6, fig.width=9}
+top10diet <- panel_data_diet %>% group_by(brand) %>% summarise(total_sales=sum(dollars)) %>% arrange(desc(total_sales)) %>% slice(1:10)
+
+top10diet_data <- panel_data %>% filter(brand %in% top10diet$brand) %>% group_by(brand,year) %>% summarise(yearly_sales=sum(dollars))
+
+top10diet_data %>% ggplot(aes(x=year, y=yearly_sales, col=brand)) + geom_bar(position="stack", stat="identity") + ggtitle("Yearly sales over time by top 10 diet brands") + theme(legend.position="right")
+
+```
+
+
+# REGULAR DATA
+
+Find top 10 brands in terms of sales and plot sales.
+
+```{r fig.height=6, fig.width=9}
+top10regular <- panel_data_regular %>% group_by(brand) %>% summarise(total_sales=sum(dollars)) %>% arrange(desc(total_sales)) %>% slice(1:10)
+
+top10regular_data <- panel_data %>% filter(brand %in% top10regular$brand) %>% group_by(brand,year) %>% summarise(yearly_sales=sum(dollars))
+
+top10regular_data %>% ggplot(aes(x=year, y=yearly_sales, col=brand)) + geom_bar(position="stack", stat="identity") + ggtitle("Yearly sales over time by top 10 regular brands") + theme(legend.position="right")
+
+```
