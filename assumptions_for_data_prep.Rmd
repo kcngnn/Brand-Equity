@@ -1,0 +1,136 @@
+---
+title: "Assumptions for Data Prep"
+author: "Kim-Cuong Nguyen"
+date: "7/15/2020"
+output: md_document
+---
+
+The purpose of this file is to document our decisions on how to define an observation from the panel data to include in the model. This will be a record of why we made the choices we did, as well as a road map for the data prep. 
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+load("panel_data.RData")
+```
+
+# Panel
+UPCs purchased for each panelist; row for each week-panelist-UPC-store combination that had a purchase
+```{r}
+head(panel_data)
+```
+
+How many panelists are in the panel data in total? 
+```{r}
+length(unique(panel_data$panel_id))
+```
+
+How many UPCs are in the panel data in total? 
+```{r}
+length(unique(panel_data$upc))
+```
+
+How many stores are in the panel data in total? 
+```{r}
+length(unique(panel_data$store))
+```
+
+## What is an observation in the dynamic brand equity model? 
+1. Weekly decision: buy or not / quantity purchased / UPC(s) chosen
+2. Conditional on store visit: buy or not / quantity purchased
+3. Conditional on carbonated beverage purchase incidence in a week: quantity purchased / UPC(s) chosen
+4. Conditional on buying each unit: UPC chosen
+
+Option 1: 
+
+```{r}
+purch_occassion <- panel_data %>% group_by(panel_id, year) %>% summarise(n_purch=n())
+
+purch_occassion %>% filter(year==1) %>% ggplot(aes(x=n_purch)) + geom_histogram() + labs(x="number purchases per year", title="Number of purchases per year for year 1")
+```
+
+Option 2: would be challenging to implement because we don't actually observe store visits directly. We would have to process data from other IRI categories to try to infer this and that would be very time consuming. This rules out Option 2. 
+
+Option 3: to assess the need to separately model incidence and purchase quantity, we compute the total number of units purchased in each week (conditional on purchasing some beverages). The majority of panelists buy less than 5 units per week. 
+
+```{r}
+panel_week_units <- panel_data %>% group_by(panel_id, week) %>% summarise(n_units=sum(units))
+panel_week_units %>% ggplot(aes(x=n_units)) + geom_histogram(binwidth = 1) + xlim(0, 25) + labs(title="Number of units panelists buy in a week", y="count of panelist-weeks", x="number of units purchased in a week")
+```
+
+Option 4: People seldom buy more than one UPC in a week, so when customers buy more than one unit, it is usually multiple units of the same UPC. This means it is unreasonable to assume that two units purchased in the same week are independant making Option 4 less desirable. 
+
+```{r}
+panel_week_upc <- panel_data %>% group_by(panel_id, week) %>%
+  summarise(n_upc_week=n_distinct(upc))
+panel_week_upc %>% ggplot(aes(x=n_upc_week)) + geom_histogram() + labs(x="number of UPCs in a week", y="count of panelist-weeks", title="Number of different UPCs customers buy in a week")
+```
+
+
+## How many UPCs will be included in each choice set? Will we ignore purchases of UPCs with lower overall sales?
+It would be dificult to model all 3500+ UPCs that are purchased in the panel data. To find a reasonable cut-off, we looked at total sales (across all time periods) for each UPC. There a a relatively small number of high-selling UPCs. 
+
+```{r}
+upc_total_sales <- panel_data %>% group_by(upc) %>% summarise(total_sales = sum(units)) %>% arrange(desc(total_sales))
+
+upc_total_sales %>% ggplot(aes(x=total_sales)) + geom_histogram(bins=40) + labs(title="Total UPC sales for each UPC over complete time period") + xlim(0, 10000) + ylim(0, 100)
+```
+
+If we use the top 100 UPCs, then we are eliminating nearly 36% of sales in the panel data. If we use the top 200 UPCs, then we are eliminating 23% of sales in the panel data. 
+
+```{r}
+total_sales <- panel_data %>% ungroup() %>% summarise(total_sales=sum(dollars))
+
+sales_100 <- panel_data %>% group_by(upc) %>% summarise(total_sales=sum(dollars)) %>% arrange(desc(total_sales)) %>% slice(1:100) %>% summarise(total_sales=sum(total_sales))
+sales_100*100/total_sales
+
+sales_200 <- panel_data %>% group_by(upc) %>% summarise(total_sales=sum(dollars)) %>% arrange(desc(total_sales)) %>% slice(1:200) %>% summarise(total_sales=sum(total_sales))
+sales_200*100/total_sales
+```
+
+A table of the top 100 UPCs over the period with their sales quantity and features.
+
+The joined table have more than 100 rows. The reason is that recorded upc information changed over the years. For example, upc 14900002890 has its type of sweetener recorded differently as "HGH FRCT CRN SYP SCR" and "HGH FRCTS & CORN SYR" in different periods. Or upc 14900000551 has its volume recorded differently as 0.3522 & 0.3521 in different periods.
+
+```{r}
+top100upc <- panel_data %>% group_by(upc) %>% summarise(total_sales=sum(dollars)) %>% arrange(desc(total_sales)) %>% slice(1:100) %>% left_join(panel_data, by="upc") %>% select(-total_sales, -panel_id,-year, -week,-store,-outlet, -units, -dollars, -large_category) %>% distinct()
+
+head(top100upc)
+
+# The code below keeps only the last record and returns 100 rows only
+top100upc <- top100upc[!duplicated(top100upc$upc, fromLast=TRUE),]
+unique(top100upc$upc)
+```
+
+## How will we compute the price for each UPC?
+1. Average price at the store that the customer visited, with missing stores replaced with averages
+2. Average price paid in that week from the panel data
+
+To assess how bad Option 2 will be relative to option 1, we looked at the range of prices for a UPC within a given week (across stores) from the panel data. 
+
+```{r}
+top4 <- panel_data %>% group_by(upc) %>% summarise(total_sales=sum(dollars)) %>% arrange(desc(total_sales)) %>% slice(1:4)
+
+top4_data <- panel_data %>% ungroup() %>% filter(upc %in% c(top4$upc)) %>% mutate(avg_price=dollars/units) %>% group_by(upc, avg_price)
+
+top4_upc <- unique(top4$upc)
+
+#there are 451 weeks the top 4 upcs are all sold in 
+top4_data %>% group_by(week) %>% distinct(upc) %>% arrange(week) %>% group_by(week) %>% summarise(n=n()) %>% filter(n==4)
+
+top4_data %>% filter(week==1590) %>% ggplot(aes(x=upc, y=avg_price)) + geom_violin()
+```
+
+# Update the original data file using the upc information of the latest year in cases of information changes over the years
+
+```{r}
+# Extract upc list then drop duplicates, keeping information of the latest year
+upc_list <- panel_data[,-c(1:5,7:8)] %>% distinct()
+upc_list <- upc_list[!duplicated(upc_list$upc, fromLast=TRUE),]
+
+# Merge upc information back to data file
+panel_data <- panel_data[,1:8] %>% inner_join(upc_list,by = "upc")
+  
+save(panel_data, file="panel_data.RData")
+```
