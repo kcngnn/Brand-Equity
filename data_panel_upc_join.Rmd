@@ -1,0 +1,134 @@
+---
+title: "Join Panel & UPC data"
+---
+
+# Basic Setup
+
+```{r setup, include=FALSE}
+# Set options for the rmarkdown file
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align = 'center', width = 100)
+invisible(Sys.setlocale("LC_ALL", "en_US.UTF-8"))
+options(digits = 4, width = 220) # Prevent printing in scientific notation
+```
+
+```{r}
+# Use pacman to load packages
+pacman::p_load(tidyverse, stringr, pander)
+```
+
+#Read Panel Data
+
+```{r}
+directory <- "/Users/ntkcu/Documents/Drexel/GRA/brand_equity/IRI_data/beverages/data"
+
+purchases <- tibble()
+for (i in 1:11) {
+  if (i < 8) {
+    name = paste0(directory, "/Year", i, "/")
+    setwd(name)
+    file_names <- list.files(name)
+    for (m in file_names) {
+      if (grepl("PANEL", m, fixed = TRUE)) {
+        temp <- read.table(m, header = TRUE, as.is = TRUE) %>% mutate(year = i)
+        temp <- as_tibble(temp)
+        purchases <- purchases %>% bind_rows(temp)
+      }
+    }
+  }
+  else {
+    name = paste0(directory, "/Year", i, "/")
+    setwd(name)
+    file_names <- list.files(name)
+    for (j in file_names) {
+      if (grepl("PANEL", j, fixed = TRUE)) {
+        temp <- read.table(j, header = TRUE, sep =",", as.is = TRUE) %>%  mutate(year = i) %>% select(-MINUTE)
+        temp <- as_tibble(temp)
+        purchases <- purchases %>% bind_rows(temp)
+      }
+    }
+    }
+}
+
+purchases$COLUPC = as.character(purchases$COLUPC)
+```
+
+# UPC Lookup Table
+
+```{r, eval=FALSE}
+volume_dir <- "/Users/ntkcu/Documents/Drexel/GRA/brand_equity/IRI_data/beverages/data"
+fn_carbbev_upc <- function(volume_dir) {
+
+    carbbev_upc_year_1_to_6 <- 
+        readxl::read_excel(paste0(volume_dir, "/prod_carbbev.xls")) %>%
+        dplyr::mutate(iri_year = '1-6')
+    
+    carbbev_upc_year_7 <- 
+        readxl::read_excel(paste0(volume_dir, "/prod_carbbev2007.xlsx")) %>%
+        dplyr::mutate(iri_year = '7')
+    
+    carbbev_upc_year_8_to_11 <- 
+        readxl::read_excel(paste0(volume_dir, "/prod11_carbbev2008-2011.xlsx")) %>%
+        dplyr::mutate(iri_year = '8-11')
+    
+    carbbev_upc <- 
+        bind_rows(
+         carbbev_upc_year_1_to_6, carbbev_upc_year_7, carbbev_upc_year_8_to_11
+        ) %>% mutate(COLUPC = as.character(as.numeric(paste(SY,GE,str_pad(VEND, width = 5, "left", "0"), str_pad(ITEM, width = 5, "left", "0"),sep='')
+        ))) %>% 
+        rename(
+            large_category = L1
+            , small_category = L2
+            , parent_company = L3
+            , vendor = L4
+            , brand = L5
+            , upc_desc = L9
+        ) %>%
+        select(1:6,14:22,25) %>%
+        setNames(tolower(make.names(names(.)))) %>%
+        select(iri_year, colupc, everything())
+    
+    return(carbbev_upc)
+}
+
+carbbev_upc <- fn_carbbev_upc(volume_dir)
+
+```
+
+# Join on UPC
+
+```{r results = 'asis'}
+purchases_1_to_6 <- 
+    purchases %>%
+        filter(year <= 6) %>%
+        inner_join(
+            carbbev_upc %>%
+                filter(iri_year == "1-6") %>%
+                select(-iri_year)
+            , by = c("COLUPC" = 'colupc')
+        )
+
+purchases_7 <- 
+    purchases %>%
+        filter(year == 7) %>%
+        inner_join(
+            carbbev_upc %>%
+                filter(iri_year == "7") %>%
+                select(-iri_year)
+            , by = c("COLUPC" = 'colupc')
+        )
+
+purchases_8_to_11 <- 
+    purchases %>%
+        filter(year >= 8) %>%
+        inner_join(
+            carbbev_upc %>%
+                filter(iri_year == "8-11") %>%
+                select(-iri_year)
+            , by = c("COLUPC" = 'colupc')
+        )
+
+purchases_final <- bind_rows(purchases_1_to_6, purchases_7, purchases_8_to_11)
+
+saveRDS(purchases_final, paste0(volume_dir, "purchases_final.RDS"))
+
+```
