@@ -1,0 +1,128 @@
+---
+title: "Beverages Ad Data Prep"
+author: "Kim-Cuong Nguyen"
+date: "07/29/2020"
+output: md_document
+---
+
+Load ad data and libraries. 
+```{r}
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+
+ad_99_02 <- read_csv("Carbonated_Soft_Drinks_929876_export.csv")
+ad_00_02 <- ad_99_02[-nrow(ad_99_02),-(2:13)] # Remove last row as GRAND TOTAL
+ad_03_06 <- read_csv("Carbonated_Soft_Drinks_929878_export.csv")
+ad_03_06 <- ad_03_06[-nrow(ad_03_06),]
+ad_07_10 <- read_csv("Carbonated_Soft_Drinks_929879_export.csv")
+ad_07_10 <- ad_07_10[-nrow(ad_07_10),]
+ad_11_14 <- read_csv("Carbonated_Soft_Drinks_929880_export.csv")
+ad_11    <- ad_11_14[-nrow(ad_11_14),1:13]
+rm(ad_99_02,ad_11_14)
+```
+
+# Clean datasets. 
+- Reformat each dataset.
+- Merge all the datasets.
+- Split date into month & year.
+- Remove NA in ad_spend column. No missing months in the data.
+- Create a `quarter` column.
+- Aggreate `ad_spend` per (brand,month,year,qt).
+
+```{r}
+# Format each dataset
+ad_00_02 <- ad_00_02 %>% gather(key="date", value="ad_spend", -BRAND)
+ad_03_06 <- ad_03_06 %>% gather(key="date", value="ad_spend", -BRAND)
+ad_07_10 <- ad_07_10 %>% gather(key="date", value="ad_spend", -BRAND)
+ad_11    <- ad_11    %>% gather(key="date", value="ad_spend", -BRAND)
+
+# Merge datasets
+beverage_ad_spend <- ad_00_02 %>% bind_rows(ad_03_06) %>% bind_rows(ad_07_10) %>% bind_rows(ad_11)
+
+# Remove NAs
+beverage_ad_spend <- beverage_ad_spend %>% drop_na(ad_spend)
+
+# Split date into month & year
+beverage_ad_spend <- beverage_ad_spend %>% mutate(month_1=substr(date, 1, 3), year=substr(date, 5, 8)) %>% mutate(month=factor(month_1, levels=c("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"))) %>% select(-month_1)
+
+# Create a columns for `quarter`
+qtrs <- beverage_ad_spend %>% distinct(year, month) %>% arrange(year, month) %>% mutate(qt=rep(1:48, each=3))
+
+beverage_ad_spend <- beverage_ad_spend %>% left_join(qtrs, by=c("year", "month")) %>% dplyr::select(-date)
+
+# Brands in the table
+unique(beverage_ad_spend$BRAND)
+
+# Create a column of higher brand level
+sevenup <- c("7 Up","7 Up Plus","Cherry 7 Up","7 Up Sponsorship","7 Up Ten")
+aw <- c("A&W Root Beer","A&W")
+canadadry <- c("Canada Dry Ginger Ale","Canada Dry")
+coke <- c("Cherry Coke","Coca-Cola","Coca-Cola Citra","Vanilla Coke","Black Cherry Vanilla Coke","Coca-Cola Blak","Coca-Cola C2","Coca-Cola With Lime")
+dietcoke <- c("Diet Coke","Diet Coke Caffeine Free","Diet Coke With Lemon","Coca-Cola Light","Coca-Cola Zero","Diet Coke With Lime","Coca-Cola Zero Sponsorship","Coke Light","Diet Coke Plus")
+dietdrpepper <- c("Diet Dr Pepper","Diet Cherry Vanilla Dr Pepper","Diet Dr Pepper Cherry Chocolate")
+dietmdew <- c("Diet Mountain Dew","Diet Mountain Dew Voltage")
+dietpepsi <- c("Diet Pepsi","Pepsi One","Diet Pepsi Caffeine Free","Diet Pepsi Jazz","Diet Pepsi Vanilla","Pepsi Max")
+dietrite <- c("Diet Rite","Diet Rite Caffeine Free","Diet Rite No Sodium Cola","Diet Rite Pure Zero")
+drpepper <- c("Dr Pepper","Dr Pepper Berries & Cream","Dr Pepper Cherry","Dr Pepper Corporate","Dr Pepper Sponsorship","Dr Pepper 10")
+mdew <- c("Mountain Dew","Mountain Dew Sponsorship","Mountain Dew Code Red","Mountain Dew Live Wire","Mountain Dew MDX Energy Soda","Mountain Dew Game Fuel","Mountain Dew Voltage","Mountain Dew White Out","Mountain Dew Supernova","Mountain Dew Kick Start","Mountain Dew Baja Blast")
+rc <- c("RC","RC Edge")
+pepsi <- c("Pepsi","Pepsi Blue","Pepsi Twist","Pepsi Wild Cherry","Pepsi Edge","Pepsi Holiday Spice","Pepsi Lime","Pepsi Vanilla","Pepsi Lemon","Pepsi Throwback","Pepsi Next","Pepsi X")
+shasta <- c("Shasta St Nicks","Shasta Cranberry")
+sierra <- c("Sierra Mist","Sierra Mist Cranberry Splash","Sierra Mist Lemon Squeeze","Sierra Mist Natural","Sierra Mist Ruby Splash","Sierra Mist Undercover Orange")
+sprite <- c("Sprite","Sprite Sponsorship","Sprite Remix Berryclear","Sprite Remix Sponsorship","Sprite Tropical Remix","Sprite 6Mix")
+sunkist <- c("Sunkist","Sunkist Solar Fusion")
+
+beverage_ad_spend <- beverage_ad_spend %>% mutate(brands=ifelse(BRAND %in% sevenup,"7 Up",ifelse(BRAND %in% aw,"A&W",ifelse(BRAND %in% canadadry,"Canada Dry",ifelse(BRAND %in% coke,"Coke",ifelse(BRAND %in% dietcoke,"Diet Coke",ifelse(BRAND %in% dietdrpepper,"Diet Dr Pepper",ifelse(BRAND %in% dietmdew,"Diet Mountain Dew",ifelse(BRAND %in% dietpepsi,"Diet Pepsi",ifelse(BRAND %in% dietrite,"Diet Rite",ifelse(BRAND %in% drpepper,"Dr Pepper",ifelse(BRAND %in% mdew,"Mountain Dew",ifelse(BRAND %in% rc,"RC",ifelse(BRAND %in% pepsi,"Pepsi",ifelse(BRAND %in% shasta,"Shasta",ifelse(BRAND %in% sierra,"Sierra Mist",ifelse(BRAND %in% sprite,"Sprite",ifelse(BRAND %in% sunkist,"Sunkist",BRAND)))))))))))))))))) %>% select(brands,month,year,qt,ad_spend)
+  
+table(is.na(beverage_ad_spend$brands)) # All values are converted.
+
+unique(beverage_ad_spend$brands) # Re-check all brands
+
+# Aggregate ad_spend per (brand,year,month)
+beverage_ad_spend <- beverage_ad_spend %>% group_by(brands,month,year,qt) %>% summarise(ad_spend=sum(ad_spend))
+```
+
+Here is what the data looks like:
+```{r}
+head(beverage_ad_spend)
+```
+
+# Plots of `ad_spend` over time 
+
+```{r fig.height=6, fig.width=9}
+# Top 10 brands yearly
+top10brands <- beverage_ad_spend %>% group_by(brands) %>% summarise(ad_spend=sum(ad_spend)) %>% arrange(desc(ad_spend)) %>% slice(1:10)
+top10brands
+top10data <- beverage_ad_spend %>% filter(brands %in% top10brands$brands)
+top10data %>% group_by(brands, year) %>% summarise(ad_spend=sum(ad_spend)) %>% ggplot(aes(x=year, y=ad_spend, col=brands)) + geom_line(aes(group=brands)) + ggtitle("Ad spend over time by brand: Top 10 brands (yearly)") + theme(legend.position="bottom")
+
+# Top 10 brands quarterly
+top10data %>% ggplot(aes(x=qt, y=ad_spend, col=brands)) + geom_line(aes(group=brands)) + ggtitle("Ad spend over time by brand: Top 10 brands (quarterly)") + theme(legend.position="bottom")
+
+# Regular vs Diet brands
+diet <- c("Diet 7 Up","Diet Coke","Diet Dr Pepper","Diet Hansens","Diet Mountain Dew","Diet Pepsi","Diet RC","Diet Rite","Diet Sprite Zero","Diet Spritzer","Diet Sunkist")
+dietdata <- beverage_ad_spend %>% filter(brands %in% diet)
+regulardata <- beverage_ad_spend %>% filter(!brands %in% diet)
+
+## Yearly
+dietdata %>% group_by(brands, year) %>% summarise(ad_spend=sum(ad_spend)) %>% ggplot(aes(x=year, y=ad_spend, col=brands)) + geom_line(aes(group=brands)) + ggtitle("Ad spend over time by brand: Diet brands (yearly)") + theme(legend.position="bottom")
+
+regulardata %>% group_by(brands, year) %>% summarise(ad_spend=sum(ad_spend)) %>% ggplot(aes(x=year, y=ad_spend, col=brands)) + geom_line(aes(group=brands)) + ggtitle("Ad spend over time by brand: Regular brands (yearly)") + theme(legend.position="bottom")
+
+## Quarterly
+dietdata %>% ggplot(aes(x=qt, y=ad_spend, col=brands)) + geom_line(aes(group=brands)) + ggtitle("Ad spend over time by brand: Diet brands (quarterly)") + theme(legend.position="bottom")
+
+regulardata %>% ggplot(aes(x=qt, y=ad_spend, col=brands)) + geom_line(aes(group=brands)) + ggtitle("Ad spend over time by brand: Regular brands (quarterly)") + theme(legend.position="bottom")
+```
+
+Stats for 1st year pres
+```{r}
+top10data %>% ungroup() %>% filter(brands=="Coke",year=="2000") %>% summarise(mean_spend=mean(ad_spend))
+
+top10data %>% ungroup() %>% filter(brands=="Coke",year=="2000") %>% summarise(sd_spend=sd(ad_spend))
+
+top10data %>% ungroup() %>% filter(brands=="Diet Coke",year=="2000") %>% summarise(mean_spend=mean(ad_spend))
+
+top10data %>% ungroup() %>% filter(brands=="Diet Coke",year=="2000") %>% summarise(sd_spend=sd(ad_spend))
+```
