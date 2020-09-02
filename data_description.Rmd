@@ -1,0 +1,162 @@
+---
+title: "Data Description"
+author: "Kim-Cuong Nguyen"
+date: "07/10/2020"
+output: md_document
+---
+
+The purpose of this file is to describe the data according to Elea and Eric's question, so they do not have to search through the whole `data_cleaning` file, instead they receive the knitted version of this file from Morgan. To download and clean the data, please see the `data_cleaning` markdown. This markdown will proceed as though the `data_cleaning` file has been ran and the data is uploaded. 
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+
+load("panel_data.RData")
+load("carbbev_upc.RData")
+```
+
+# 1. What does a row in each of the data files look like?
+The `panel_data` file contains the panel data - the household purchase data with upc characteristics. `panel_id` is the household id. `year` & `week` indicate the time when the purchase was made. `store` refers to the store key. `outlet` is the place where the purchase is made, including grocery store (GR), drug store (DR), and mass merchandizer (MA). `units` are the total number of units the household bought in the given year, week, and store, `dollars` is the total amount spent.`upc` is the upc. 
+Other columns are upc characteristics, including sub-categories (`small_category`), company (`parent_co`), vendor (`vendor`),  brand (`brand`), description of upc (`upc_desc`), equivalized volume (`vol_eq`), product type (`product_type`), package (`package`), flavor/scent (`flavor`), calorie level (`calorie`), caffeine information (`caffeine`), type of sweetener (`sweetener_type`), percentage of juice (`juice_percentage`).
+
+```{r}
+head(panel_data)
+```
+
+# 2) What characteristics do we have about the UPCs? What are the different values each characteristic can take? (For ex, if size is a characteristic, what are all the possible sizes in the data?) 
+There are 13 UPC characteristics in the table as mentioned above, of which `upc_desc` is the combination of other characteristics, including brand, package, calorie level, caffeine information, and volume. The number of different values per characteristic is as belows: 
+- Small categories: There are 6 sub-categories, of which half of the purchases are for regular soft drinks.
+- Company: 84. Coca Cola and Pepsico are the most popular.
+- Vendor: 91. Coca Cola and Pepsico are the most popular.
+- Brand: 287. Coke, Pepsi, and their diet brands are the most popular.
+- Equivalized volumes: 70. 0.75 & 0.3521 are the most common volumes.
+- Product types: 7. 94% of the purchases are soda.
+- Packages: 33. Some common packages: normal-resistance plastic bottle, can in fridge pack box, can in box, plastic bottle, can, etc.
+- Flavor: 254. Most common flavors/scents: cola, lemon lime, root beer, etc.
+- Calorie level: 11. Regular accounts for over half of the purchases. Diet and No calories are the second most common levels.
+- Caffeine information: 9. 50% of the purchases have caffeine, and 37% are caffeine free.
+- Type of sweetener: 37. Several common types: nutrasweet, high fructose corn syrup, aspartame, etc.
+- Percentage of juice: 18. Over half has no percent given. 
+
+``` {r}
+panel_data %>% group_by(small_category) %>% filter(!small_category %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(parent_co) %>% filter(!parent_co %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(vendor) %>% filter(!vendor %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(brand) %>% filter(!brand %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(vol_eq) %>% filter(!vol_eq %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(product_type) %>% filter(!product_type %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(package) %>% filter(!package %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(flavor) %>% filter(!flavor %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(calorie) %>% filter(!calorie %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(caffeine) %>% filter(!caffeine %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(sweetener_type) %>% filter(!sweetener_type %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+panel_data %>% group_by(juice_percentage) %>% filter(!juice_percentage %in% c("MISSING", NA)) %>% summarise(count = n()) %>% arrange(desc(count))
+
+```
+
+# 3/ What percentage of each characteristics are NA/Missing? 
+Flavor has 1.33% of the observations with missing values, calorie level 0.82%, caffeine information 8.08%, type of sweetener 12.07%, and percentage of juice 29.78%. The remaining characteristics have no missing values.
+
+```{r}
+missing <- data_frame() 
+
+small_category <- panel_data %>% ungroup() %>% select(small_category) %>% filter(small_category %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(small_category)
+
+parent_co <- panel_data %>% ungroup() %>% select(parent_co) %>% filter(parent_co %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(parent_co)
+
+vendor <- panel_data %>% ungroup() %>% select(vendor) %>% filter(vendor %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(vendor)
+
+brand <- panel_data %>% ungroup() %>% select(brand) %>% filter(brand %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(brand)
+
+vol_eq <- panel_data %>% ungroup() %>% select(vol_eq) %>% filter(vol_eq %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(vol_eq)
+
+product_type <- panel_data %>% ungroup() %>% select(product_type) %>% filter(product_type %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(product_type)
+
+package <- panel_data %>% ungroup() %>% select(package) %>% filter(package %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(package)
+
+flavor <- panel_data %>% ungroup() %>% select(flavor) %>% filter(flavor %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(flavor)
+
+calorie <- panel_data %>% ungroup() %>% select(calorie) %>% filter(calorie %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(calorie)
+
+caffeine <- panel_data %>% ungroup() %>% select(caffeine) %>% filter(caffeine %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(caffeine)
+
+sweetener_type <- panel_data %>% ungroup() %>% select(sweetener_type) %>% filter(sweetener_type %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(sweetener_type)
+
+juice_percentage <- panel_data %>% ungroup() %>% select(juice_percentage) %>% filter(juice_percentage %in% c("MISSING", NA)) %>% summarise(n_obs=n())
+missing <- missing %>% bind_rows(juice_percentage)
+
+character <- c("small_category", "parent_co", "vendor", "brand", "vol_eq", "product_type", "package", "flavor", "calorie", "caffeine", "sweetener_type", "juice_percentage")
+
+missing$attributes <- character
+missing$percentage <- missing$n_obs*100/nrow(panel_data)
+missing 
+
+```
+
+# 4) Create a graph of UPC rank and sales volume.
+Top 3 UPCs are Coke Classic of two volumes 0.75 and 0.3521, and Diet Coke of 0.75.
+
+```{r}
+upc_total_sales <- panel_data %>% group_by(upc) %>% summarise(total_sales = sum(units)) %>% arrange(desc(total_sales)) %>% mutate(cum_sales = cumsum(total_sales))
+
+upc_total_sales <- upc_total_sales %>% mutate(p_sales = cum_sales/sum(total_sales))
+
+upc_total_sales %>% ggplot(aes(x=1:nrow(upc_total_sales), y=p_sales)) + geom_line() + labs(title="Cumulative Total Sales for each UPC", x="UPC rank", y="cumulative sales")
+
+upc_total_sales %>% ggplot(aes(x=total_sales)) + geom_histogram() + labs(title="Total UPC sales for each UPC over complete time period") 
+
+upc_total_sales %>% filter(total_sales > 20000)
+```
+
+# 5) How many different UPCs does a panelist buy in the total time period?
+The highest number of UPC a panelist buy in the total time period is 366 (one panelist only).
+Most panelists buy less then UPCs over the period.
+
+```{r}
+panel_total_upc <- panel_data %>% group_by(panel_id) %>% summarise(n_upcs=n_distinct(upc))
+
+panel_total_upc %>% ggplot(aes(x=n_upcs)) + geom_histogram() + labs(x="number of upcs", title="Number of different UPCs bought by consumers in total time period") 
+```
+
+# 6) How many different UPCs does a panelist buy each week? 
+The highest number of different UPCs a panelists buy per week is 28. Only 5 panelists buy over 20 different UPCs per week.
+Most panelists buy less than 5.
+
+```{r}
+panel_week_upc <- panel_data %>% group_by(panel_id, week) %>%
+  summarise(n_upc_week=n_distinct(upc))
+
+panel_week_upc %>% ggplot(aes(x=n_upc_week)) + geom_histogram() + labs(x="number of upcs purchased", title="Number of different UPCs customers buy in a week", y="count of purchase-weeks")
+```
+
+# 7) How many units does a panelist buy in a week? 
+The higest number of units a panelist buy in a week is 410. Next comes 207. 7 panelists buy over 100 per week. Most panelists buy less than 5.
+
+```{r}
+panel_week_units <- panel_data %>% group_by(panel_id, week) %>% summarise(n_units=sum(units))
+
+panel_week_units %>% ggplot(aes(x=n_units)) + geom_histogram(binwidth = 1) + xlim(0, 25) + labs(title="Number of units panelists buy in a week", x="number of units per week")
+```
+
+# 8) How often does each household buy carbonated beverages? 
+Most panelists do not make weekly purchases. 
+
+```{r}
+purch_occassion <- panel_data %>% group_by(panel_id, year) %>% summarise(n_purch=n())
+purch_occassion <- purch_occassion %>% mutate(weekly_freq = n_purch/52)
+
+purch_occassion %>% filter(year==1) %>% ggplot(aes(x=n_purch)) + geom_histogram(binwidth=1) + labs(x="number of purchases per year", title="Number of purchases per year for year 1")
+
+purch_occassion %>% filter(year==1) %>% ggplot(aes(x=weekly_freq)) + geom_histogram() + labs(x="weekly freq of purchases", title="Weekly frequency of purchases for year 1")
+```
